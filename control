@@ -1,0 +1,9 @@
+Package: com.officialscheduler.unsandboxme
+Name: UnsandboxMe
+Depends: mobilesubstrate
+Version: 0.1
+Architecture: iphoneos-arm
+Description: Unsandboxes GoodReader (and other apps)
+Maintainer: lordscotland <admin@officialscheduler.com>
+Author: lordscotland <admin@officialscheduler.com>
+Section: Tweaks
