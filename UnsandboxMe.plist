@@ -1,1 +1,1 @@
-{ Filter = { Bundles = ( "com.goodiware.GoodReader" ); }; }
+{ Filter = { Bundles = ( "com.goodiware.GoodReader","com.goodiware.GoodReaderIPad" ); }; }
