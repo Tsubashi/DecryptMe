@@ -38,7 +38,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
     if([manager isWritableFileAtPath:@"/var/mobile"]){break;}
     CFOptionFlags flags;
     NSString* $home=NSHomeDirectory();
-    logfh=fopen([$home stringByAppendingPathComponent:@"decrypt.log"].fileSystemRepresentation,"w");
+    logfh=fopen([$home stringByAppendingPathComponent:@"unsandbox.log"].fileSystemRepresentation,"w");
     if(!logfh){
       CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
        @"Cannot open log file. Please check file permissions.",nil,nil,nil,&flags);
@@ -103,7 +103,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
         }
         if(!foff){fputs("! FAT\n",logfh);break;}
       }
-      NSString* $outpath=[$home stringByAppendingPathComponent:@"decrypt.out"];
+      NSString* $outpath=[$home stringByAppendingPathComponent:@"unsandbox.out"];
       const char* outpath=$outpath.fileSystemRepresentation;
       FILE* outfh=fopen(outpath,"w+");
       do {
@@ -168,7 +168,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
         NSString* $name=$exepath.lastPathComponent,*$version=[bundle objectForInfoDictionaryKey:@"CFBundleVersion"];
         fprintf(shfh,"#!/bin/sh\nfn=${HOME%%/*}/%s",$name.fileSystemRepresentation);
         if($version){fprintf(shfh,"-%s",$version.fileSystemRepresentation);}
-        fputs("\nmv -f ~/decrypt.out \"$fn\" && ln -sf \"$fn\" \"${0%_}\" && rm -f ~/decrypt.log\n"
+        fputs("\nmv -f ~/unsandbox.out \"$fn\" && ln -sf \"$fn\" \"${0%_}\" && rm -f ~/unsandbox.log\n"
          "fn=~/Documents;if [ \"$(readlink \"$fn/tmp\")\" != ../tmp ];then\n"
          "mv \"$fn\" ~/_;mkdir \"$fn\";mv ~/_ \"$fn/Documents\" && ln -s ../Library ../tmp \"$fn\";fi\n"
          "{ n=0;while read L;do ((n++>$LINENO)) && echo \"$L\";done;}<\"$0\">\"$0~\"\n"
@@ -213,7 +213,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
     }
     else {
       CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-       @"Something went wrong. Please check [decrypt.log].",nil,nil,nil,&flags);
+       @"Something went wrong. Please check [unsandbox.log].",nil,nil,nil,&flags);
     }
   } while(0);
   [pool drain];
