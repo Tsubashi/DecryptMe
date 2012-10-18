@@ -45,12 +45,12 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
       break;
     }
     setvbuf(logfh,NULL,_IONBF,0);
-    NSString* $path=bundle.executablePath;
+    NSString* $exepath=bundle.executablePath;
     const uint32_t index=0;
-    const char* path=$path.fileSystemRepresentation,*ipath=_dyld_get_image_name(index);
-    fprintf(logfh,"TARGET %s\n",path);
-    if(strcmp(path,ipath)){fprintf(logfh,"! IMAGE %s\n",ipath);break;}
-    FILE* exe=fopen(path,"r");
+    const char* exepath=$exepath.fileSystemRepresentation,*imgname=_dyld_get_image_name(index);
+    fprintf(logfh,"TARGET %s\n",exepath);
+    if(strcmp(exepath,imgname)){fprintf(logfh,"! IMAGE %s\n",imgname);break;}
+    FILE* exe=fopen(exepath,"r");
     if(!exe){fputs("! OPEN(TARGET)\n",logfh);break;}
     BOOL success=NO;
     do {
@@ -161,14 +161,14 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
       if(success){
         success=NO;
         if(chmod(outpath,0755)){fputs("! CHMOD(OUTPUT)\n",logfh);break;}
-        NSString* $shpath=[$path stringByAppendingString:@"_"];
+        NSString* $shpath=[$exepath stringByAppendingString:@"_"];
         const char* shpath=$shpath.fileSystemRepresentation;
         FILE* shfh=fopen(shpath,"w");
         if(!shfh){fputs("! OPEN(script)\n",logfh);break;}
-        NSString* $name=$path.lastPathComponent,*$version=[bundle objectForInfoDictionaryKey:@"CFBundleVersion"];
+        NSString* $name=$exepath.lastPathComponent,*$version=[bundle objectForInfoDictionaryKey:@"CFBundleVersion"];
         fprintf(shfh,"#!/bin/sh\nfn=${HOME%%/*}/%s",$name.fileSystemRepresentation);
         if($version){fprintf(shfh,"-%s",$version.fileSystemRepresentation);}
-        fputs("\nmv \"${0%_}\" \"${0%_}~\" && mv -f ~/decrypt.out \"$fn\" && ln -s \"$fn\" \"${0%_}\"\n"
+        fputs("\nmv -f ~/decrypt.out \"$fn\" && ln -sf \"$fn\" \"${0%_}\" && rm -f ~/decrypt.log\n"
          "fn=~/Documents;if [ \"$(readlink \"$fn/tmp\")\" != ../tmp ];then\n"
          "mv \"$fn\" ~/_;mkdir \"$fn\";mv ~/_ \"$fn/Documents\" && ln -s ../Library ../tmp \"$fn\";fi\n"
          "{ n=0;while read L;do ((n++>$LINENO)) && echo \"$L\";done;}<\"$0\">\"$0~\"\n"
@@ -177,14 +177,15 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
          "export TMPDIR=~/tmp\nexec \"${0%_}\"\n",shfh);
         fclose(shfh);
         if(chmod(shpath,0755)){fputs("! CHMOD(script)\n",logfh);break;}
-        NSString* $info=[$home stringByAppendingPathComponent:@"decrypt.info"];
-        if(![manager linkItemAtPath:[bundle pathForResource:@"Info" ofType:@"plist"] toPath:$info error:NULL]){
-          fputs("! LINK(info)\n",logfh);
-          break;
-        }
-        NSMutableDictionary* $idict=[NSMutableDictionary dictionaryWithContentsOfFile:$info];
+        [manager moveItemAtPath:$exepath toPath:[$exepath stringByAppendingString:@"~"] error:NULL];
+        NSString* $bpath=bundle.bundlePath,*$tmp=[$bpath stringByAppendingString:@"_"];
+        if(![manager moveItemAtPath:$bpath toPath:$tmp error:NULL]){fputs("! MOVE(appdir)\n",logfh);break;}
+        NSString* $plpath=[$tmp stringByAppendingPathComponent:@"Info.plist"];
+        [manager copyItemAtPath:$plpath toPath:[$plpath stringByAppendingString:@"~"] error:NULL];
+        NSMutableDictionary* $idict=[NSMutableDictionary dictionaryWithContentsOfFile:$plpath];
         [$idict setObject:[$name stringByAppendingString:@"_"] forKey:@"CFBundleExecutable"];
         NSArray* $doctypes=[$idict objectForKey:@"CFBundleDocumentTypes"];
+        if(![$doctypes isKindOfClass:[NSArray class]]){goto skipUTI;}
         NSString* $UTI=@"public.item";
         for (NSDictionary* $doctype in $doctypes){
           for (NSString* $uti in [$doctype objectForKey:@"LSItemContentTypes"]){
@@ -196,22 +197,23 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
          [NSArray arrayWithObject:$UTI],@"LSItemContentTypes",nil]] forKey:@"CFBundleDocumentTypes"];
         skipUTI:
         if(![[NSPropertyListSerialization dataWithPropertyList:$idict format:NSPropertyListBinaryFormat_v1_0
-         options:0 error:NULL] writeToFile:$info atomically:NO]){
-          fputs("! WRITE(info)\n",logfh);
-          break;
+         options:0 error:NULL] writeToFile:$plpath atomically:NO]){
+          fputs("! WRITE(info)\n",logfh);break;
         }
-        unlink($info.fileSystemRepresentation);
+        if(![manager moveItemAtPath:$tmp toPath:$bpath error:NULL]){fputs("! MOVE(tmpdir)\n",logfh);break;}
+        fputs("DONE\n",logfh);
+        success=YES;
       }
     } while(0);
     fclose(exe);
     if(success){
-      CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-       @"Something went wrong. Please check [decrypt.log].",nil,nil,nil,&flags);
+      CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,@"Success",
+       [NSString stringWithFormat:@"Unsandboxing complete.\n%@ will now close.",
+       [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]],nil,nil,nil,&flags);
     }
     else {
-      CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,@"Success",
-       [NSString stringWithFormat:@"Unsandboxing complete. %@ will now close.",
-       [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]],nil,nil,nil,&flags);
+      CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
+       @"Something went wrong. Please check [decrypt.log].",nil,nil,nil,&flags);
     }
   } while(0);
   [pool drain];
