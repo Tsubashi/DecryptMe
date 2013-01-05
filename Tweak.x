@@ -1,9 +1,9 @@
 #import <CoreFoundation/CFUserNotification.h>
+#import <CommonCrypto/CommonDigest.h>
 #import <MobileCoreServices/UTType.h>
 #include <sys/stat.h>
 #include <mach-o/fat.h>
 #include <mach-o/dyld.h>
-#include "sha1.h"
 
 struct Blob {uint32_t magic,length;};
 struct BlobIndex {uint32_t type,offset;};
@@ -139,10 +139,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
             uint8_t buf[0x1000];
             for (j=0;j<npages;j++){
               fread(buf,1,len=(j<npages-1)?0x1000:((lcsig->dataoff-1)%0x1000)+1,outfh);
-              SHA1Context sha1;
-              SHA1Reset(&sha1);
-              SHA1Input(&sha1,buf,len);
-              SHA1Result(&sha1,hash+20*j);
+              CC_SHA1(buf,len,hash+CC_SHA1_DIGEST_LENGTH*j);
             }
           }
           fsetpos(outfh,&pos);
