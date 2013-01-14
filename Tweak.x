@@ -32,19 +32,19 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
 %ctor {
   NSAutoreleasePool* pool=[[NSAutoreleasePool alloc] init];
   NSFileManager* manager=[NSFileManager defaultManager];
+  if([manager isWritableFileAtPath:@"/var/mobile"]){goto __end;}
+  CFOptionFlags flags;
+  NSString* $home=NSHomeDirectory();
+  FILE* logfh=fopen([$home stringByAppendingPathComponent:@"unsandbox.log"].fileSystemRepresentation,"w");
+  if(!logfh){
+    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
+     @"Cannot open log file. Please check file permissions.",nil,nil,nil,&flags);
+    goto __end;
+  }
+  setvbuf(logfh,NULL,_IONBF,0);
+  BOOL success=NO;
   NSBundle* bundle=[NSBundle mainBundle];
-  FILE* logfh=NULL;
   do {
-    if([manager isWritableFileAtPath:@"/var/mobile"]){break;}
-    CFOptionFlags flags;
-    NSString* $home=NSHomeDirectory();
-    logfh=fopen([$home stringByAppendingPathComponent:@"unsandbox.log"].fileSystemRepresentation,"w");
-    if(!logfh){
-      CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-       @"Cannot open log file. Please check file permissions.",nil,nil,nil,&flags);
-      break;
-    }
-    setvbuf(logfh,NULL,_IONBF,0);
     NSString* $exepath=bundle.executablePath;
     const uint32_t index=0;
     const char* exepath=$exepath.fileSystemRepresentation,*imgname=_dyld_get_image_name(index);
@@ -52,7 +52,6 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
     if(strcmp(exepath,imgname)){fprintf(logfh,"! IMAGE %s\n",imgname);break;}
     FILE* exe=fopen(exepath,"r");
     if(!exe){fputs("! OPEN(TARGET)\n",logfh);break;}
-    BOOL success=NO;
     do {
       const struct mach_header* image=_dyld_get_image_header(index);
       const struct load_command* load=(void*)image+sizeof(struct mach_header);
@@ -106,6 +105,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
       NSString* $outpath=[$home stringByAppendingPathComponent:@"unsandbox.out"];
       const char* outpath=$outpath.fileSystemRepresentation;
       FILE* outfh=fopen(outpath,"w+");
+      if(!outfh){fputs("! OPEN(OUTPUT)\n",logfh);break;}
       do {
         size_t len;
         fprintf(logfh,"WRITE(LC) %lu > %lu\n",len=lcenc-(void*)image,ftell(outfh));
@@ -145,7 +145,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
           fsetpos(outfh,&pos);
           fprintf(logfh,"WRITE(CODESIGN) %lu > %lu\n",len=lcsig->datasize,ftell(outfh));
           if((len-=fwrite(blob,1,len,outfh))){fprintf(logfh,"! WRITE(CODESIGN).remaining %lu\n",len);}
-        } while (0);
+        } while(0);
         free(blob);
         if(len){break;}
         fseek(exe,foff+lcsig->dataoff+lcsig->datasize,SEEK_SET);
@@ -162,10 +162,13 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
         const char* shpath=$shpath.fileSystemRepresentation;
         FILE* shfh=fopen(shpath,"w");
         if(!shfh){fputs("! OPEN(script)\n",logfh);break;}
-        NSString* $name=$exepath.lastPathComponent,*$version=[bundle objectForInfoDictionaryKey:@"CFBundleVersion"];
-        fprintf(shfh,"#!/bin/sh\nfn=${HOME%%/*}/%s",$name.fileSystemRepresentation);
-        if($version){fprintf(shfh,"-%s",$version.fileSystemRepresentation);}
-        fputs("\nmv -f ~/unsandbox.out \"$fn\" && ln -sf \"$fn\" \"${0%_}\" && rm -f ~/unsandbox.log\n"
+        fputs("#!/bin/sh\nlfn=${0%_};fn=${HOME%/*}/${lfn##*/}",shfh);
+        NSString* $version=[bundle objectForInfoDictionaryKey:@"CFBundleVersion"];
+        if($version){
+          fprintf(shfh,"-'%s'",[$version stringByReplacingOccurrencesOfString:@"'"
+           withString:@"'\\''"].fileSystemRepresentation);
+        }
+        fputs(";mv -f ~/unsandbox.out \"$fn\" && ln -sf \"$fn\" \"$lfn\" && rm -f ~/unsandbox.log\n"
          "fn=~/Documents;if [ \"$(readlink \"$fn/tmp\")\" != ../tmp ];then\n"
          "mv \"$fn\" ~/_;mkdir \"$fn\";mv ~/_ \"$fn/Documents\" && ln -s ../Library ../tmp \"$fn\";fi\n"
          "{ n=0;while read L;do ((n++>$LINENO)) && echo \"$L\";done;}<\"$0\">\"$0~\"\n"
@@ -180,19 +183,19 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
         NSString* $plpath=[$tmp stringByAppendingPathComponent:@"Info.plist"];
         [manager copyItemAtPath:$plpath toPath:[$plpath stringByAppendingString:@"~"] error:NULL];
         NSMutableDictionary* $idict=[NSMutableDictionary dictionaryWithContentsOfFile:$plpath];
-        [$idict setObject:[$name stringByAppendingString:@"_"] forKey:@"CFBundleExecutable"];
+        [$idict setObject:$shpath.lastPathComponent forKey:@"CFBundleExecutable"];
         NSArray* $doctypes=[$idict objectForKey:@"CFBundleDocumentTypes"];
-        if(![$doctypes isKindOfClass:[NSArray class]]){goto skipUTI;}
+        if(![$doctypes isKindOfClass:[NSArray class]]){goto __skipUTI;}
         NSString* $UTI=@"public.item";
         for (NSDictionary* $doctype in $doctypes){
           for (NSString* $uti in [$doctype objectForKey:@"LSItemContentTypes"]){
-            if(UTTypeConformsTo((CFStringRef)$UTI,(CFStringRef)$uti)){goto skipUTI;}
+            if(UTTypeConformsTo((CFStringRef)$UTI,(CFStringRef)$uti)){goto __skipUTI;}
           }
         }
         [$idict setObject:[$doctypes arrayByAddingObject:[NSDictionary dictionaryWithObjectsAndKeys:
          @"OTHER",@"CFBundleTypeName",@"Alternate",@"LSHandlerRank",
          [NSArray arrayWithObject:$UTI],@"LSItemContentTypes",nil]] forKey:@"CFBundleDocumentTypes"];
-        skipUTI:
+        __skipUTI:
         if(![[NSPropertyListSerialization dataWithPropertyList:$idict format:NSPropertyListBinaryFormat_v1_0
          options:0 error:NULL] writeToFile:$plpath atomically:NO]){
           fputs("! WRITE(info)\n",logfh);break;
@@ -203,19 +206,18 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
       }
     } while(0);
     fclose(exe);
-    if(success){
-      CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,@"Success",
-       [NSString stringWithFormat:@"Unsandboxing complete.\n%@ will now close.",
-       [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]],nil,nil,nil,&flags);
-    }
-    else {
-      CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-       @"Something went wrong. Please check [unsandbox.log].",nil,nil,nil,&flags);
-    }
   } while(0);
-  [pool drain];
-  if(logfh){
-    fclose(logfh);
-    exit(0);
+  if(success){
+    CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,@"Success",
+     [NSString stringWithFormat:@"Unsandboxing complete.\n%@ will now close.",
+     [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]],nil,nil,nil,&flags);
   }
+  else {
+    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
+     @"Something went wrong. Please check [unsandbox.log].",nil,nil,nil,&flags);
+  }
+  fclose(logfh);
+  exit(0);
+  __end:
+  [pool drain];
 }  
