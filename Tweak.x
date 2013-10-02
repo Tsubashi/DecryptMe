@@ -33,12 +33,12 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
   NSAutoreleasePool* pool=[[NSAutoreleasePool alloc] init];
   NSFileManager* manager=[NSFileManager defaultManager];
   if([manager isWritableFileAtPath:@"/var/mobile"]){goto __end;}
-  CFOptionFlags flags;
   NSString* $home=NSHomeDirectory();
   FILE* logfh=fopen([$home stringByAppendingPathComponent:@"unsandbox.log"].fileSystemRepresentation,"w");
   if(!logfh){
-    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-     @"Cannot open log file. Please check file permissions.",nil,nil,nil,&flags);
+    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,CFSTR("Error"),
+     CFSTR("Cannot open log file. Please check file permissions."),
+     NULL,NULL,NULL,NULL);
     goto __end;
   }
   setvbuf(logfh,NULL,_IONBF,0);
@@ -208,13 +208,17 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
     fclose(exe);
   } while(0);
   if(success){
-    CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,@"Success",
-     [NSString stringWithFormat:@"Unsandboxing complete.\n%@ will now close.",
-     [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]],nil,nil,nil,&flags);
+    CFStringRef message=CFStringCreateWithFormat(NULL,NULL,
+     CFSTR("Unsandboxing complete.\n%@ will now close."),
+     [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"]);
+    CFUserNotificationDisplayAlert(0,3,NULL,NULL,NULL,CFSTR("Success"),
+     message,NULL,NULL,NULL,NULL);
+    CFRelease(message);
   }
   else {
-    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,@"Error",
-     @"Something went wrong. Please check [unsandbox.log].",nil,nil,nil,&flags);
+    CFUserNotificationDisplayAlert(0,0,NULL,NULL,NULL,CFSTR("Error"),
+     CFSTR("Something went wrong. Please check [unsandbox.log]."),
+     NULL,NULL,NULL,NULL);
   }
   fclose(logfh);
   exit(0);
