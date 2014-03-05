@@ -73,8 +73,7 @@ static uint32_t $_streamCopy(FILE* dest,FILE* src,size_t size) {
         else if(load->cmd==LC_CODE_SIGNATURE){lcsig=(void*)load;}
         load=(void*)load+load->cmdsize;
       }
-      fprintf(logfh,tsize?"__TEXT.size %u\n":"! __TEXT.size",tsize);
-      fprintf(logfh,fsize?"IMAGE.size %u\n":"! IMAGE.size",fsize);
+      fprintf(logfh,"__TEXT.size %u\nIMAGE.size %u\n",tsize,fsize);
       if(!lcenc){fputs("! LC_ENCRYPTION_INFO\n",logfh);}
       if(!lcsig){fputs("! LC_CODE_SIGNATURE\n",logfh);}
       else if(lcsig->dataoff<tsize){
