@@ -1,9 +1,9 @@
-Package: com.officialscheduler.unsandboxme
-Name: UnsandboxMe
+Package: com.officialscheduler.decryptme
+Name: DecryptMe
 Depends: mobilesubstrate
 Version: 0.1
 Architecture: iphoneos-arm
-Description: Unsandboxes GoodReader (and other apps)
+Description: Decrypts apps at runtime
 Maintainer: lordscotland <admin@officialscheduler.com>
 Author: lordscotland <admin@officialscheduler.com>
 Section: Tweaks
