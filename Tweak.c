@@ -87,9 +87,13 @@ static __attribute__((constructor)) void init() {
       }
       if(!foff){syslog(LOG_ERR,LPREFIX"! FAT_ARCH");break;}
     }
-    const char* tmpdir=getenv("TMPDIR");
+    const char* rootdir=getenv("HOME");
+    const char* subdir="/Documents";
     const char* outfn=strrchr(imgname,'/');
-    char* outpath=strcat(strcpy(malloc(strlen(tmpdir)+strlen(outfn)),tmpdir),outfn);
+    size_t prelen=strlen(rootdir),outlen=strlen(outfn);
+    const size_t sublen=strlen(subdir);
+    char* outpath=memcpy(malloc(prelen+sublen+outlen+1),rootdir,prelen);
+    memcpy(memcpy(outpath+prelen,subdir,sublen)+sublen,outfn,outlen+1);
     syslog(LOG_INFO,LPREFIX"OUTPUT=%s",outpath);
     FILE* outfh=fopen(outpath,"w+");
     free(outpath);
